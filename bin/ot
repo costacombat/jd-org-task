@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# ot: Org tasks from the shell. See README.md, or run `ot help`.
+#
+# Each command runs ot.el's `ot-cli' in a small Emacs started with -Q: a
+# daemon on its own socket when one is running (it starts one on first
+# use), or else a one-off `emacs --batch'. Your own Emacs and its config
+# are never involved.
+set -euo pipefail
+
+: "${OT_EMACS:=emacs}"
+: "${OT_EMACSCLIENT:=emacsclient}"
+: "${OT_LISP:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../lisp" && pwd)}"
+: "${OT_FILE:=$HOME/org/tasks.org}"
+: "${OT_INBOX:=}"    # default inbox when the folder gives none
+: "${OT_ROOT:=}"     # Johnny.Decimal root on disk, for + Inbox folders
+: "${OT_CONTEXT:=1}" # 0: don't pick the inbox from the current folder
+: "${OT_SOCKET:=ot}"
+: "${OT_DAEMON:=auto}" # auto: use or start a daemon; 0: always --batch
+
+usage() {
+  cat <<'EOF'
+usage: ot [--file FILE] [--json] COMMAND ...
+
+  ot add TITLE... [--in WHERE | --under ID] [--due WHEN] [--state STATE]
+                     add a task to an inbox, or file it under a heading
+  ot ls [--under ID] [--state STATE] [--all]
+                     list tasks: open ones, or STATE, or all with --all
+  ot inbox [WHERE]   list what's waiting in the inboxes, broadest first
+  ot move TASK --in WHERE | --under ID
+                     move a task to an inbox, or file it under a heading
+  ot set TASK STATE  change a task's state (NEXT, WAIT, DONE, ...)
+  ot done TASK       mark a task done
+  ot where TASK      print FILE:LINE of a task
+  ot open TASK       open a task in your editor
+  ot daemon          run ot's Emacs in the foreground (for a service)
+  ot stop            stop ot's Emacs daemon
+
+WHERE picks an inbox, narrowest wins:
+  ot add Renew it --in W0011    the work package's  W0011+ Inbox
+  ot add Renew it --in 11.11    the ID's            11.11+ Inbox
+  ot add Renew it --in 11       the category's      11.01
+  ot add Renew it --in 10-19    the area's          10.01
+  ot add Renew it --in system   the system's        00.01
+With no --in or --under, the inbox for the folder you're in (inside
+"11.11 Passport" it's 11.11's), else $OT_INBOX, else 00.01.
+ID is a heading's CUSTOM_ID or the number its title starts with:
+  ot add Renew it --under 11.11     ot add Book flights --under W0011
+TASK is the start of a task's id, as `ot ls` prints it.
+WHEN is anything Org's date prompt reads: fri, +2w, 2026-12-01.
+
+  --file FILE   the Org file (default $OT_FILE, else ~/org/tasks.org)
+  --json        print JSON
+
+Environment: OT_FILE; OT_INBOX (the default inbox: a WHERE, or a
+heading's title); OT_CONTEXT (0: ignore the current folder); OT_ROOT
+(the Johnny.Decimal root, so + Inbox folders are made on disk too);
+OT_SOCKET (daemon socket name or absolute path, default ot); OT_DAEMON
+(0 to never use a daemon); OT_EDITOR (for `ot open`; default
+emacsclient -n).
+EOF
+}
+
+# An Elisp string literal holding $1
+q() {
+  local s=${1//\\/\\\\}
+  s=${s//\"/\\\"}
+  printf '"%s"' "$s"
+}
+
+# --file and --json may come anywhere; the rest is the command and its args
+json=nil
+rest=()
+while [ $# -gt 0 ]; do
+  case $1 in
+  --file)
+    OT_FILE=${2:?--file needs a value}
+    shift 2
+    ;;
+  --json)
+    json=t
+    shift
+    ;;
+  -h | --help | help)
+    usage
+    exit 0
+    ;;
+  *)
+    rest+=("$1")
+    shift
+    ;;
+  esac
+done
+set -- "${rest[@]}"
+[ $# -gt 0 ] || {
+  usage >&2
+  exit 2
+}
+cmd=$1
+shift
+
+daemon() { "$OT_EMACS" -Q -L "$OT_LISP" -l ot "$@"; }
+# Emacs only uses a socket folder no one else can read. Only the socket's
+# own folder needs 700, so -m on the deepest one is what we want.
+socket_dir() {
+  # shellcheck disable=SC2174
+  case $OT_SOCKET in
+  /*) [ -d "${OT_SOCKET%/*}" ] || mkdir -p -m 700 "${OT_SOCKET%/*}" ;;
+  esac
+}
+alive() { "$OT_EMACSCLIENT" -s "$OT_SOCKET" --eval t >/dev/null 2>&1; }
+
+case $cmd in
+daemon)
+  socket_dir
+  exec "$OT_EMACS" -Q -L "$OT_LISP" -l ot --fg-daemon="$OT_SOCKET"
+  ;;
+stop)
+  if alive; then "$OT_EMACSCLIENT" -s "$OT_SOCKET" --eval '(kill-emacs)' >/dev/null 2>&1 || true; fi
+  exit 0
+  ;;
+esac
+
+# `open` is `where`, then the editor
+open=
+if [ "$cmd" = open ]; then
+  open=1
+  cmd=where
+  json=nil
+fi
+
+file=$(realpath -m -- "$OT_FILE")
+out=$(mktemp "${TMPDIR:-/tmp}/ot.XXXXXX")
+trap 'rm -f "$out"' EXIT
+
+args=
+for a in "$@"; do args+=" $(q "$a")"; done
+cwd=nil
+[ "$OT_CONTEXT" = 0 ] || cwd=$(q "$PWD")
+root=nil
+[ -z "$OT_ROOT" ] || root=$(q "$(realpath -m -- "$OT_ROOT")")
+form="(let ((ot-cwd $cwd) (ot-root $root))
+  (ot-cli $(q "$file") $(q "$out") $(q "$cmd") (list$args) $(q "$OT_INBOX") $json))"
+
+status=
+if [ "$OT_DAEMON" != 0 ]; then
+  socket_dir
+  if ! alive; then
+    daemon --daemon="$OT_SOCKET" >/dev/null 2>&1 || true
+  fi
+  if alive; then
+    status=$("$OT_EMACSCLIENT" -s "$OT_SOCKET" --eval "$form" 2>/dev/null) || status=
+  fi
+fi
+if [ -z "$status" ]; then
+  status=0
+  "$OT_EMACS" -Q --batch -L "$OT_LISP" -l ot --eval "(kill-emacs $form)" 2>/dev/null || status=$?
+fi
+
+if [ "$status" != 0 ]; then
+  if [ -s "$out" ]; then cat "$out" >&2; else echo "ot: Emacs failed" >&2; fi
+  exit 1
+fi
+
+if [ -n "$open" ]; then
+  where=$(cat "$out")
+  line=${where##*:}
+  path=${where%:*}
+  if [ -n "${OT_EDITOR:-}" ]; then
+    # shellcheck disable=SC2086 # OT_EDITOR may carry its own flags
+    exec $OT_EDITOR "+$line" "$path"
+  fi
+  exec "$OT_EMACSCLIENT" -n "+$line" "$path"
+fi
+cat "$out"

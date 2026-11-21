@@ -1,0 +1,36 @@
+* 00-09 System
+** 00 System management
+*** 00.01 Inbox
+:PROPERTIES:
+:CUSTOM_ID: 00.01
+:END:
+* 10-19 Life admin
+** 10 Area management
+*** 10.01 Inbox
+:PROPERTIES:
+:CUSTOM_ID: 10.01
+:END:
+** 11 Me
+*** 11.01 Inbox
+:PROPERTIES:
+:CUSTOM_ID: 11.01
+:END:
+*** 11.11 Passport
+:PROPERTIES:
+:CUSTOM_ID: 11.11
+:END:
+*** 11.12 Bank
+:PROPERTIES:
+:CUSTOM_ID: 11.12
+:END:
+* 20-29 Work
+** 21 Clients
+*** 21.01 Inbox
+:PROPERTIES:
+:CUSTOM_ID: 21.01
+:END:
+* W0000-9999 Work packages
+** W0011~11.11 Renew passport
+:PROPERTIES:
+:CUSTOM_ID: W0011
+:END:

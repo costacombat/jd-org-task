@@ -1,7 +1,7 @@
 ;;; jd-org.el --- Johnny.Decimal in Org, through jd -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2026 Ash
-;; SPDX-License-Identifier: MIT
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 ;; Author: Ash
 ;; Version: 0.1.0
@@ -79,7 +79,7 @@ An entry's bucket is a tag, not part of its number, so moving between
 buckets never renumbers it."
   :type '(alist :key-type string :value-type string))
 
-(defcustom jd-org-gtd-keywords '("NEXT" "WAITING" "TODO")
+(defcustom jd-org-gtd-keywords '("NEXT" "WAIT" "TODO")
   "TODO keywords shown, in this order, by the GTD part of `jd-org-agenda'."
   :type '(repeat string))
 

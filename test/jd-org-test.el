@@ -15,7 +15,7 @@
 
 (defconst jd-org-test-jdex
   "#+title: Test JDex
-#+TODO: TODO NEXT WAITING | DONE
+#+TODO: TODO NEXT WAIT | DONE
 
 * 10-19 Life admin
 ** 11 Me

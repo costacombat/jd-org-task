@@ -1,0 +1,16 @@
+* 10-19 Life admin
+** 11 Me
+*** 11.01 Inbox
+:PROPERTIES:
+:CUSTOM_ID: 11.01
+:END:
+*** 11.11 Passport
+:PROPERTIES:
+:CUSTOM_ID: 11.11
+:END:
+* W0000-9999 Work packages
+** W0011~11.11 Renew passport
+:PROPERTIES:
+:CUSTOM_ID: W0011
+:END:
+** W0012~11.11 Old one
