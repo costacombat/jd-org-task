@@ -1,0 +1,12 @@
+#!/bin/sh
+# A stand-in for jd in jd-org's unit tests. It logs its arguments and
+# prints what the test put in FAKE_JD_OUT (stdout) and FAKE_JD_ERR
+# (stderr), then exits FAKE_JD_EXIT. With FAKE_JD_APPEND set, it appends
+# that text to FAKE_JD_FILE first, as jd appends a heading to the JDex.
+printf '%s\n' "$*" >>"$FAKE_JD_LOG"
+if [ -n "${FAKE_JD_APPEND-}" ]; then
+  printf '%s' "$FAKE_JD_APPEND" >>"$FAKE_JD_FILE"
+fi
+[ -n "${FAKE_JD_ERR-}" ] && printf '%s\n' "$FAKE_JD_ERR" >&2
+printf '%s' "${FAKE_JD_OUT-}"
+exit "${FAKE_JD_EXIT-0}"
